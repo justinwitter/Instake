@@ -270,7 +270,8 @@ with col2:
     display_mode = st.selectbox(
         "Display mode:",
         ["Blended overlay", "Cutout with border", "Side by side"],
-        help="Choose how to display the result"
+        help="Choose how to display the result",
+        index=1
     )
     
     if display_mode == "Blended overlay":
@@ -355,7 +356,7 @@ if original_file and cutout_file:
     else:
         col1, col2, col3 = st.columns(3)
         with col1:
-            scale_factor = st.slider("Scale factor", 0.1, 3.0, 1.0, 0.1, help="Resize the cutout before positioning")
+            scale_factor = st.slider("Scale factor", 0.1, 3.0, 1.0, 0.05, help="Resize the cutout before positioning")
         
         # Apply scaling to cutout if different from 1.0
         if scale_factor != 1.0:
@@ -364,9 +365,9 @@ if original_file and cutout_file:
             st.info(f"Cutout resized to: {cutout_img.size[0]} x {cutout_img.size[1]} pixels")
         
         with col2:
-            x_pos = st.number_input("X position", 0, max(0, original_img.size[0] - cutout_img.size[0]), 0)
+            x_pos = st.slider("X position", 0, max(0, original_img.size[0] - cutout_img.size[0]), 0, 1)
         with col3:
-            y_pos = st.number_input("Y position", 0, max(0, original_img.size[1] - cutout_img.size[1]), 0)
+            y_pos = st.slider("Y position", 0, max(0, original_img.size[1] - cutout_img.size[1]), 0, 1)
         position = (x_pos, y_pos)
     
     # Create overlay based on display mode
