@@ -110,6 +110,53 @@ def overlay_images(original, cutout, position, opacity=0.7):
     
     return Image.fromarray(result)
 
+def create_bordered_overlay(original, cutout, position, border_color, border_width):
+    """Create overlay with a colored border that follows the cutout's outline/perimeter only"""
+    orig_array = np.array(original)
+    cutout_array = np.array(cutout)
+    
+    x, y = position
+    h, w = cutout_array.shape[:2]
+    
+    # Ensure the cutout fits within the original image bounds
+    if x + w > orig_array.shape[1]:
+        w = orig_array.shape[1] - x
+        cutout_array = cutout_array[:, :w]
+    if y + h > orig_array.shape[0]:
+        h = orig_array.shape[0] - y
+        cutout_array = cutout_array[:h, :]
+    
+    # Create a copy of the original image
+    result = orig_array.copy()
+    
+    # Place the cutout first
+    result[y:y+h, x:x+w] = cutout_array
+    
+    # Create mask from cutout (identify non-white pixels)
+    cutout_gray = cv2.cvtColor(cutout_array, cv2.COLOR_RGB2GRAY)
+    _, mask = cv2.threshold(cutout_gray, 240, 255, cv2.THRESH_BINARY_INV)
+    
+    # Find contours to get the outline
+    contour_result = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if len(contour_result) == 3:
+        # OpenCV 3.x returns (image, contours, hierarchy)
+        contours = contour_result[1]
+    else:
+        # OpenCV 4.x returns (contours, hierarchy)
+        contours = contour_result[0]
+    
+    # Create a mask for just the border/outline
+    border_mask = np.zeros_like(mask)
+    
+    # Draw the contours with the specified border width
+    cv2.drawContours(border_mask, contours, -1, 255, thickness=border_width)
+    
+    # Apply border color only to the outline pixels
+    border_indices = border_mask > 0
+    result[y:y+h, x:x+w][border_indices] = border_color
+    
+    return Image.fromarray(result)
+
 def calculate_cutout_measurements(cutout_img, pixels_per_inch):
     """Calculate area and perimeter of the cutout based on non-white pixels"""
     cutout_array = np.array(cutout_img)
@@ -207,9 +254,9 @@ with col2:
     # Add pixels per inch input
     pixels_per_inch = st.number_input(
         "Pixels per inch (for measurements)",
-        min_value=1.0,
+        min_value=.00000001,
         max_value=1200.0,
-        value=300.0,
+        value=0.985,
         step=1.0,
         help="Resolution of the original image - needed for accurate area/perimeter calculations"
     )
@@ -217,7 +264,7 @@ with col2:
     overlay_mode = st.radio(
         "Overlay mode:",
         ["Automatic positioning", "Manual positioning"],
-        help="Automatic uses template matching to find the best position"
+        help="Automatic uses template matching to find the best position",
     )
     
     display_mode = st.selectbox(
@@ -351,20 +398,25 @@ if original_file and cutout_file:
     st.subheader("📏 Measurements")
     
     measurements = calculate_cutout_measurements(cutout_img, pixels_per_inch)
+    # Convert to other units
+    area_sq_ft = measurements['area_square_inches'] / 144
+    area_sq_cm = measurements['area_square_inches'] * 6.4516
+    perimeter_ft = measurements['perimeter_inches'] / 12
+    perimeter_cm = measurements['perimeter_inches'] * 2.54
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.metric(
             "Area",
-            f"{measurements['area_square_inches']:.3f} sq in",
+            f"{area_sq_ft:.3f} sq ft",
             help=f"Based on {measurements['area_pixels']} pixels"
         )
     
     with col2:
         st.metric(
             "Perimeter", 
-            f"{measurements['perimeter_inches']:.3f} in",
+            f"{perimeter_ft:.3f} ft",
             help=f"Based on {measurements['perimeter_pixels']:.1f} pixels"
         )
     
@@ -387,11 +439,7 @@ if original_file and cutout_file:
         st.write(f"- Perimeter: {measurements['perimeter_inches']:.6f} inches")
         st.write(f"- Resolution: {pixels_per_inch} pixels per inch")
         
-        # Convert to other units
-        area_sq_ft = measurements['area_square_inches'] / 144
-        area_sq_cm = measurements['area_square_inches'] * 6.4516
-        perimeter_ft = measurements['perimeter_inches'] / 12
-        perimeter_cm = measurements['perimeter_inches'] * 2.54
+        
         
         st.write("**Alternative Units:**")
         st.write(f"- Area: {area_sq_ft:.6f} sq ft, {area_sq_cm:.3f} sq cm")
@@ -476,20 +524,16 @@ Position (if manually set):
 
 
 else:
-    st.info("👆 Please upload both an original image and a cutout image to get started.")
+    st.info("👆 Please upload a base image and a cutout to get started.")
     
     st.markdown("""
     ### 📋 How to use:
-    1. **Upload original image**: The base image where the cutout was taken from
-    2. **Upload cutout image**: A cropped/cut portion from the original image
-    3. **Choose overlay mode**: 
+    1. **Clean floorplan**: Remove all text from floorplan using [ChatGPT](https://chatgpt.com/)
+    2. **Extract cutout**: Use [Meta's SAM demo](https://segment-anything.com/demo) to extract area for measurement
+    3. **Upload images**: Upload the base image and the extracted cutout
+    4. **Choose overlay mode**: 
        - *Automatic*: Uses computer vision to find the best matching position
        - *Manual*: Lets you specify exact coordinates
-    4. **Select display mode**: Choose how you want to see the result
-    5. **Download**: Save the final overlaid image
-    
-    ### 💡 Tips:
-    - For best results, ensure the cutout is actually from the original image
-    - Higher resolution images generally give better matching results
-    - The automatic positioning works best when there are distinctive features in the cutout
+    5. **Refine overlay**: Modify the scale of the cutout to match the base image if needed
+    6. **View Results**: Check calculated perimeter and area based on set PPF (pixels per foot) 
     """)
