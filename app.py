@@ -228,8 +228,8 @@ def calculate_cutout_measurements(cutout_img, pixels_per_inch):
 
 st.set_page_config(page_title="Image Cutout Overlay", layout="wide")
 
-st.title("🖼️ Image Cutout Overlay Tool")
-st.markdown("Upload an original image and a cutout, and this app will automatically find the best matching position and overlay them.")
+st.title(":toolbox: Instake")
+st.markdown("Upload an original image and a cutout, and this app will automatically find its area and perimeter.")
 
 col1, col2 = st.columns(2)
 
